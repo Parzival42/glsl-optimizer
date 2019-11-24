@@ -69,7 +69,6 @@ CMakeCache.txt
 .cproject
 glsl_main
 glsl_test
-glslopt
 glsl_compiler
 .settings/
 .pydevproject
