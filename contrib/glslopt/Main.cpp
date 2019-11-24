@@ -6,7 +6,7 @@
 
 static glslopt_ctx* gContext = 0;
 
-static int printhelp(const char* msg)
+/*static int printhelp(const char* msg)
 {
 	if (msg) printf("%s\n\n\n", msg);
 	printf("Usage: glslopt <-f|-v> <input shader> [<output shader>]\n");
@@ -18,7 +18,7 @@ static int printhelp(const char* msg)
 	printf("\n\tIf no output specified, output is to [input].out.\n");
 	return 1;
 }
-
+*/
 static bool init(glslopt_target target)
 {
 	gContext = glslopt_initialize(target);
@@ -53,7 +53,7 @@ static char* loadFile(const char* filename)
 	return result;
 }
 
-static bool saveFile(const char* filename, const char* data)
+/*static bool saveFile(const char* filename, const char* data)
 {
 	int size = (int)strlen(data);
 
@@ -73,9 +73,9 @@ static bool saveFile(const char* filename, const char* data)
 
 	fclose(file);
 	return true;
-}
+}*/
 
-static bool compileShader(const char* dstfilename, const char* srcfilename, bool vertexShader)
+/*static bool compileShader(const char* dstfilename, const char* srcfilename, bool vertexShader)
 {
 	const char* originalShader = loadFile(srcfilename);
 	if( !originalShader )
@@ -97,63 +97,56 @@ static bool compileShader(const char* dstfilename, const char* srcfilename, bool
 
 	delete[] originalShader;
 	return true;
+}*/
+
+static char* strndup (const char *s, size_t n) {
+  char *result;
+  size_t len = strnlen(s, n);
+
+  result = (char *) malloc (len + 1);
+  if (!result)
+    return 0;
+
+  result[len] = '\0';
+  return (char *) memcpy (result, s, len);
 }
 
-int main(int argc, char* argv[])
-{
-	if( argc < 3 )
-		return printhelp(NULL);
+extern "C" __declspec(dllexport) char* optimizeFragmentShader(const char* originalSource) {
+	const glslopt_shader_type shaderType = kGlslOptShaderFragment;
+	const glslopt_target languageTarget = kGlslTargetOpenGL;
+	init(languageTarget);
 
-	bool vertexShader = false, freename = false;
-	glslopt_target languageTarget = kGlslTargetOpenGL;
-	const char* source = 0;
-	char* dest = 0;
-
-	for( int i=1; i < argc; i++ )
-	{
-		if( argv[i][0] == '-' )
-		{
-			if( 0 == strcmp("-v", argv[i]) )
-				vertexShader = true;
-			else if( 0 == strcmp("-f", argv[i]) )
-				vertexShader = false;
-			else if( 0 == strcmp("-1", argv[i]) )
-				languageTarget = kGlslTargetOpenGL;
-			else if( 0 == strcmp("-2", argv[i]) )
-				languageTarget = kGlslTargetOpenGLES20;
-			else if( 0 == strcmp("-3", argv[i]) )
-				languageTarget = kGlslTargetOpenGLES30;
-		}
-		else
-		{
-			if( source == 0 )
-				source = argv[i];
-			else if( dest == 0 )
-				dest = argv[i];
-		}
+	glslopt_shader* shader = glslopt_optimize(gContext, shaderType, originalSource, 0);
+	if(!glslopt_get_status(shader)) {
+		printf( "Failed to compile: \n\n%s\n", glslopt_get_log(shader));
+		return nullptr;
 	}
+	const char* optimizedShaderOutput = glslopt_get_output(shader);
 
-	if( !source )
-		return printhelp("Must give a source");
+	// Note: This returned pointer must be released!
+	int size = (int)strlen(optimizedShaderOutput);
+	return strndup(optimizedShaderOutput, size);
+}
 
-	if( !init(languageTarget) )
-	{
-		printf("Failed to initialize glslopt!\n");
-		return 1;
-	}
-
-	if ( !dest ) {
-		dest = (char *) calloc(strlen(source)+5, sizeof(char));
-		snprintf(dest, strlen(source)+5, "%s.out", source);
-		freename = true;
-	}
-
-	int result = 0;
-	if( !compileShader(dest, source, vertexShader) )
-		result = 1;
-
-	if( freename ) free(dest);
-
+/**
+ * Call this after optimizeFragmentShader(..) to release all resources!
+ */
+extern "C" __declspec(dllexport) void releaseResources(char* stringPointer) {
 	term();
-	return result;
+    free(stringPointer);
+}
+
+/**
+ * For local testing purposes.
+ */
+int main(int argc, char* argv[]) {
+	const char* source = loadFile(argv[1]);
+	//printf("Original Soruce:\n");
+	//printf(source);
+
+	printf("Start optimizing\n");
+	char* optimized = optimizeFragmentShader(source);
+	printf("Finished optimizing\n");
+	printf(optimized);
+	releaseResources(optimized);
 }
